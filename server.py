@@ -70,6 +70,14 @@ def main():
 			import traceback
 			traceback.print_exc()
 			threadMain.stop()
+			if threadSpeedtest.is_alive():
+				threadSpeedtest.stop()
+			if threadAutoexec.is_alive():
+				threadAutoexec.stop()
+			if threadAutoblock.is_alive():
+				threadAutoblock.stop()
+			import sys
+			sys.exit()
 
 if __name__ == '__main__':
 	main()
