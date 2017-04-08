@@ -33,11 +33,15 @@ method_supported.update(obfs_tls.obfs_map)
 method_supported.update(verify.obfs_map)
 method_supported.update(auth.obfs_map)
 
+
 class server_info(object):
+
     def __init__(self, data):
         self.data = data
 
+
 class obfs(object):
+
     def __init__(self, method):
         method = common.to_str(method)
         self.method = method
@@ -53,6 +57,9 @@ class obfs(object):
     def set_server_info(self, server_info):
         return self.obfs.set_server_info(server_info)
 
+    def get_server_info(self):
+        return self.obfs.get_server_info()
+
     def get_method_info(self, method):
         method = method.lower()
         m = method_supported.get(method)
@@ -61,6 +68,9 @@ class obfs(object):
     def get_obfs(self, method):
         m = self._method_info
         return m[0](method)
+
+    def get_overhead(self, direction):
+        return self.obfs.get_overhead(direction)
 
     def client_pre_encrypt(self, buf):
         return self.obfs.client_pre_encrypt(buf)
@@ -103,5 +113,4 @@ class obfs(object):
         del self.obfs
 
     def get_hostname(self):
-        logging.error(self.obfs.host_name)
         return self.obfs.host_name

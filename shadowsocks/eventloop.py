@@ -53,7 +53,7 @@ EVENT_NAMES = {
 }
 
 # we check timeouts every TIMEOUT_PRECISION seconds
-TIMEOUT_PRECISION = 10
+TIMEOUT_PRECISION = 2
 
 
 class KqueueLoop(object):
@@ -143,6 +143,7 @@ class SelectLoop(object):
 
 
 class EventLoop(object):
+
     def __init__(self):
         if hasattr(select, 'epoll'):
             self._impl = select.epoll()
@@ -208,12 +209,14 @@ class EventLoop(object):
                     traceback.print_exc()
                     continue
 
+            handle = False
             for sock, fd, event in events:
                 handler = self._fdmap.get(fd, None)
                 if handler is not None:
                     handler = handler[1]
                     try:
-                        handler.handle_event(sock, fd, event)
+                        handle = handle or handler.handle_event(
+                            sock, fd, event)
                     except (OSError, IOError) as e:
                         shell.print_exception(e)
             now = time.time()
@@ -221,6 +224,8 @@ class EventLoop(object):
                 for callback in self._periodic_callbacks:
                     callback()
                 self._last_time = now
+            if events and not handle:
+                time.sleep(0.001)
 
     def __del__(self):
         self._impl.close()
