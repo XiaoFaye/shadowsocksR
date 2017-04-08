@@ -170,7 +170,7 @@ def get_md5(data):
 
 def get_ip_md5(data, salt):
     m1 = hashlib.md5(data.encode('utf-8') + salt.encode('utf-8'))
-    return m1.hexdigest()
+    return data
 
 
 def patch_socket():
