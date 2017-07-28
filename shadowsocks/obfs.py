@@ -23,7 +23,7 @@ import hashlib
 import logging
 
 from shadowsocks import common
-from shadowsocks.obfsplugin import plain, http_simple, obfs_tls, verify, auth
+from shadowsocks.obfsplugin import plain, http_simple, obfs_tls, verify, auth, auth_chain
 
 
 method_supported = {}
@@ -32,6 +32,7 @@ method_supported.update(http_simple.obfs_map)
 method_supported.update(obfs_tls.obfs_map)
 method_supported.update(verify.obfs_map)
 method_supported.update(auth.obfs_map)
+method_supported.update(auth_chain.obfs_map)
 
 
 class server_info(object):
@@ -102,8 +103,8 @@ class obfs(object):
     def client_udp_post_decrypt(self, buf):
         return self.obfs.client_udp_post_decrypt(buf)
 
-    def server_udp_pre_encrypt(self, buf):
-        return self.obfs.server_udp_pre_encrypt(buf)
+    def server_udp_pre_encrypt(self, buf, uid):
+        return self.obfs.server_udp_pre_encrypt(buf, uid)
 
     def server_udp_post_decrypt(self, buf):
         return self.obfs.server_udp_post_decrypt(buf)

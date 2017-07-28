@@ -177,6 +177,10 @@ class EventLoop(object):
         del self._fdmap[fd]
         self._impl.unregister(fd)
 
+    def removefd(self, fd):
+        del self._fdmap[fd]
+        self._impl.unregister(fd)
+
     def add_periodic(self, callback):
         self._periodic_callbacks.append(callback)
 
@@ -215,8 +219,7 @@ class EventLoop(object):
                 if handler is not None:
                     handler = handler[1]
                     try:
-                        handle = handle or handler.handle_event(
-                            sock, fd, event)
+                        handle = handler.handle_event(sock, fd, event) or handle
                     except (OSError, IOError) as e:
                         shell.print_exception(e)
             now = time.time()

@@ -229,7 +229,7 @@ class DbTransfer(object):
                 if get_config().CLOUDSAFE == 0:
                     deny_file = open('/etc/hosts.deny', 'a')
                     fcntl.flock(deny_file.fileno(), fcntl.LOCK_EX)
-                    deny_file.write(deny_str + "\n")
+                    deny_file.write(deny_str)
                     deny_file.close()
         conn.close()
         return update_transfer
@@ -366,11 +366,11 @@ class DbTransfer(object):
         cur = conn.cursor()
         cur.execute("SELECT " +
                     ','.join(keys) +
-                    " FROM user WHERE `class`>=" +
+                    " FROM user WHERE ((`class`>=" +
                     str(nodeinfo[1]) +
                     " " +
                     node_group_sql +
-                    " AND`enable`=1 AND `expire_in`>now() AND `transfer_enable`>`u`+`d`")
+                    ") OR `is_admin`=1) AND`enable`=1 AND `expire_in`>now() AND `transfer_enable`>`u`+`d`")
         rows = []
         for r in cur.fetchall():
             d = {}
@@ -404,7 +404,7 @@ class DbTransfer(object):
             if id not in self.detect_text_list:
                 d = {}
                 d['id'] = id
-                d['regex'] = r[1]
+                d['regex'] = str(r[1])
                 self.detect_text_list[id] = d
                 self.detect_text_ischanged = True
             else:
@@ -412,7 +412,7 @@ class DbTransfer(object):
                     del self.detect_text_list[id]
                     d = {}
                     d['id'] = id
-                    d['regex'] = r[1]
+                    d['regex'] = str(r[1])
                     self.detect_text_list[id] = d
                     self.detect_text_ischanged = True
 
@@ -439,15 +439,15 @@ class DbTransfer(object):
             if r[0] not in self.detect_hex_list:
                 d = {}
                 d['id'] = id
-                d['regex'] = r[1]
+                d['regex'] = str(r[1])
                 self.detect_hex_list[id] = d
                 self.detect_hex_ischanged = True
             else:
                 if r[1] != self.detect_hex_list[r[0]]['regex']:
                     del self.detect_hex_list[id]
                     d = {}
-                    d['id'] = r[0]
-                    d['regex'] = r[1]
+                    d['id'] = int(r[0])
+                    d['regex'] = str(r[1])
                     self.detect_hex_list[id] = d
                     self.detect_hex_ischanged = True
 
@@ -510,8 +510,11 @@ class DbTransfer(object):
 
         md5_users = {}
 
+        self.mu_port_list = []
+
         for row in rows:
             if row['is_multi_user'] != 0:
+                self.mu_port_list.append(int(row['port']))
                 continue
 
             md5_users[row['id']] = row.copy()
@@ -542,8 +545,6 @@ class DbTransfer(object):
                     pass
                 i += 1
 
-        self.mu_port_list = []
-
         for row in rows:
             port = row['port']
             user_id = row['id']
@@ -569,7 +570,11 @@ class DbTransfer(object):
             merge_config_keys = ['password'] + read_config_keys
             for name in cfg.keys():
                 if hasattr(cfg[name], 'encode'):
-                    cfg[name] = cfg[name].encode('utf-8')
+                    try:
+                        cfg[name] = cfg[name].encode('utf-8')
+                    except Exception as e:
+                        logging.warning(
+                            'encode cfg key "%s" fail, val "%s"' % (name, cfg[name]))
 
             if 'node_speedlimit' in cfg:
                 if float(
@@ -610,7 +615,6 @@ class DbTransfer(object):
 
             if cfg['is_multi_user'] != 0:
                 cfg['users_table'] = md5_users.copy()
-                self.mu_port_list.append(port)
 
             cfg['detect_hex_list'] = self.detect_hex_list.copy()
             cfg['detect_text_list'] = self.detect_text_list.copy()
@@ -761,7 +765,7 @@ class DbTransfer(object):
                     self.del_server(port, "config changed")
                     new_servers[port] = (passwd, cfg)
             elif ServerPool.get_instance().server_run_status(port) is False:
-                #new_servers[port] = passwd
+                # new_servers[port] = passwd
                 self.new_server(port, passwd, cfg)
 
         for row in last_rows:
@@ -843,11 +847,14 @@ class DbTransfer(object):
         db_instance = obj()
 
         shell.log_shadowsocks_version()
-        import resource
-        logging.info(
-            'current process RLIMIT_NOFILE resource: soft %d hard %d' %
-            resource.getrlimit(
-                resource.RLIMIT_NOFILE))
+        try:
+            import resource
+            logging.info(
+                'current process RLIMIT_NOFILE resource: soft %d hard %d' %
+                resource.getrlimit(
+                    resource.RLIMIT_NOFILE))
+        except:
+            pass
         try:
             while True:
                 load_config()
@@ -861,7 +868,7 @@ class DbTransfer(object):
                 except Exception as e:
                     trace = traceback.format_exc()
                     logging.error(trace)
-                    #logging.warn('db thread except:%s' % e)
+                    # logging.warn('db thread except:%s' % e)
                 if db_instance.event.wait(60) or not db_instance.is_all_thread_alive():
                     break
         except KeyboardInterrupt as e:

@@ -54,7 +54,8 @@ class WebTransfer(object):
         for id in dt_transfer.keys():
             if dt_transfer[id][0] == 0 and dt_transfer[id][1] == 0:
                 continue
-            data.append({'u': dt_transfer[id][0], 'd': dt_transfer[id][1], 'user_id': self.port_uid_table[id]})
+            data.append({'u': dt_transfer[id][0], 'd': dt_transfer[
+                        id][1], 'user_id': self.port_uid_table[id]})
             update_transfer[id] = dt_transfer[id]
         webapi.postApi('users/traffic',
                        {'node_id': get_config().NODE_ID},
@@ -82,7 +83,7 @@ class WebTransfer(object):
         for port in detect_log_list.keys():
             for rule_id in detect_log_list[port]:
                 data.append({'list_id': rule_id,
-                             'user_id': self.port_uid_table[id]})
+                             'user_id': self.port_uid_table[port]})
         webapi.postApi('users/detectlog',
                        {'node_id': get_config().NODE_ID},
                        {'data': data})
@@ -139,7 +140,7 @@ class WebTransfer(object):
                 if get_config().CLOUDSAFE == 0:
                     deny_file = open('/etc/hosts.deny', 'a')
                     fcntl.flock(deny_file.fileno(), fcntl.LOCK_EX)
-                    deny_file.write(deny_str + "\n")
+                    deny_file.write(deny_str)
                     deny_file.close()
             webapi.postApi('func/block_ip',
                            {'node_id': get_config().NODE_ID},
@@ -232,7 +233,7 @@ class WebTransfer(object):
         self.node_ip_list = []
         data = webapi.getApi('nodes')
         for node in data:
-            temp_list = node['node_ip'].split(',')
+            temp_list = str(node['node_ip']).split(',')
             self.node_ip_list.append(temp_list[0])
 
         # 读取审计规则,数据包匹配部分
@@ -242,12 +243,12 @@ class WebTransfer(object):
         data = webapi.getApi('func/detect_rules')
         for rule in data:
             d = {}
-            d['id'] = rule['id']
+            d['id'] = int(rule['id'])
             d['regex'] = str(rule['regex'])
-            if rule['type'] == 1:
-                self.detect_text_list[rule['id']] = d.copy()
+            if int(rule['type']) == 1:
+                self.detect_text_list[d['id']] = d.copy()
             else:
-                self.detect_hex_list[rule['id']] = d.copy()
+                self.detect_hex_list[d['id']] = d.copy()
 
         # 读取中转规则，如果是中转节点的话
 
@@ -258,11 +259,11 @@ class WebTransfer(object):
                 'func/relay_rules', {'node_id': get_config().NODE_ID})
             for rule in data:
                 d = {}
-                d['id'] = rule['id']
-                d['user_id'] = rule['user_id']
+                d['id'] = int(rule['id'])
+                d['user_id'] = int(rule['user_id'])
                 d['dist_ip'] = str(rule['dist_ip'])
-                d['port'] = rule['port']
-                d['priority'] = rule['priority']
+                d['port'] = int(rule['port'])
+                d['priority'] = int(rule['priority'])
                 self.relay_rule_list[d['id']] = d.copy()
 
         return rows
@@ -288,8 +289,11 @@ class WebTransfer(object):
 
         md5_users = {}
 
+        self.mu_port_list = []
+
         for row in rows:
             if row['is_multi_user'] != 0:
+                self.mu_port_list.append(int(row['port']))
                 continue
 
             md5_users[row['id']] = row.copy()
@@ -320,7 +324,15 @@ class WebTransfer(object):
                     pass
                 i += 1
 
-        self.mu_port_list = []
+        if self.mu_only == -1:
+            i = 0
+            while i < len(rows):
+                if rows[i]['is_multi_user'] != 0:
+                    rows.pop(i)
+                    i -= 1
+                else:
+                    pass
+                i += 1
 
         for row in rows:
             port = row['port']
@@ -347,7 +359,11 @@ class WebTransfer(object):
             merge_config_keys = ['password'] + read_config_keys
             for name in cfg.keys():
                 if hasattr(cfg[name], 'encode'):
-                    cfg[name] = cfg[name].encode('utf-8')
+                    try:
+                        cfg[name] = cfg[name].encode('utf-8')
+                    except Exception as e:
+                        logging.warning(
+                            'encode cfg key "%s" fail, val "%s"' % (name, cfg[name]))
 
             if 'node_speedlimit' in cfg:
                 if float(
@@ -389,7 +405,6 @@ class WebTransfer(object):
 
             if cfg['is_multi_user'] != 0:
                 cfg['users_table'] = md5_users.copy()
-                self.mu_port_list.append(port)
 
             cfg['detect_hex_list'] = self.detect_hex_list.copy()
             cfg['detect_text_list'] = self.detect_text_list.copy()
@@ -538,7 +553,7 @@ class WebTransfer(object):
                     self.del_server(port, "config changed")
                     new_servers[port] = (passwd, cfg)
             elif ServerPool.get_instance().server_run_status(port) is False:
-                #new_servers[port] = passwd
+                # new_servers[port] = passwd
                 self.new_server(port, passwd, cfg)
 
         for row in last_rows:
@@ -630,11 +645,14 @@ class WebTransfer(object):
         webapi = webapi_utils.WebApi()
 
         shell.log_shadowsocks_version()
-        import resource
-        logging.info(
-            'current process RLIMIT_NOFILE resource: soft %d hard %d' %
-            resource.getrlimit(
-                resource.RLIMIT_NOFILE))
+        try:
+            import resource
+            logging.info(
+                'current process RLIMIT_NOFILE resource: soft %d hard %d' %
+                resource.getrlimit(
+                    resource.RLIMIT_NOFILE))
+        except:
+            pass
         try:
             while True:
                 load_config()
@@ -646,12 +664,13 @@ class WebTransfer(object):
                     else:
                         db_instance.push_db_all_user()
                         rows = db_instance.pull_db_all_user()
-                        db_instance.del_server_out_of_bound_safe(last_rows, rows)
+                        db_instance.del_server_out_of_bound_safe(
+                            last_rows, rows)
                         last_rows = rows
                 except Exception as e:
                     trace = traceback.format_exc()
                     logging.error(trace)
-                    #logging.warn('db thread except:%s' % e)
+                    # logging.warn('db thread except:%s' % e)
                 if db_instance.event.wait(60) or not db_instance.is_all_thread_alive():
                     break
         except KeyboardInterrupt as e:
