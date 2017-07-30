@@ -172,7 +172,7 @@ class TCPRelayHandler(object):
         server_info.iv = self._encryptor.cipher_iv
         server_info.recv_iv = b''
         server_info.key_str = common.to_bytes(config['password'])
-        server_info.key = self._encryptor.cipher_key
+        server_info.key = self._encryptor.key
         server_info.head_len = 30
         server_info.tcp_mss = self._tcp_mss
         server_info.buffer_size = self._recv_buffer_size
@@ -195,7 +195,7 @@ class TCPRelayHandler(object):
         server_info.iv = self._encryptor.cipher_iv
         server_info.recv_iv = b''
         server_info.key_str = common.to_bytes(config['password'])
-        server_info.key = self._encryptor.cipher_key
+        server_info.key = self._encryptor.key
         server_info.head_len = 30
         server_info.tcp_mss = self._tcp_mss
         server_info.buffer_size = self._recv_buffer_size
@@ -279,6 +279,7 @@ class TCPRelayHandler(object):
         except Exception:
             self._stage = STAGE_DESTROYED
             logging.error('create encryptor fail at port %d', self._server._listen_port)
+            traceback.print_exc()
 
     def _update_user(self, user):
         self._current_user_id = int(user)
@@ -1179,15 +1180,15 @@ class TCPRelayHandler(object):
         if self._overhead == 0:
             return recv_buffer_size
         buffer_size = len(sock.recv(recv_buffer_size, socket.MSG_PEEK))
+        frame_size = self._tcp_mss - self._overhead
         if up:
             buffer_size = min(buffer_size, self._recv_u_max_size)
-            self._recv_u_max_size = min(self._recv_u_max_size + self._tcp_mss - self._overhead, BUF_SIZE)
+            self._recv_u_max_size = min(self._recv_u_max_size + frame_size, BUF_SIZE)
         else:
             buffer_size = min(buffer_size, self._recv_d_max_size)
-            self._recv_d_max_size = min(self._recv_d_max_size + self._tcp_mss - self._overhead, BUF_SIZE)
+            self._recv_d_max_size = min(self._recv_d_max_size + frame_size, BUF_SIZE)
         if buffer_size == recv_buffer_size:
             return buffer_size
-        frame_size = self._tcp_mss - self._overhead
         if buffer_size > frame_size:
             buffer_size = int(buffer_size / frame_size) * frame_size
         return buffer_size
@@ -1241,6 +1242,10 @@ class TCPRelayHandler(object):
                         host = ''
                         try:
                             obfs_decode = self._obfs.server_decode(data)
+                            if self._stage == STAGE_INIT:
+                                self._overhead = self._obfs.get_overhead(self._is_local) + self._protocol.get_overhead(self._is_local)
+                                server_info = self._protocol.get_server_info()
+                                server_info.overhead = self._overhead
                         except Exception as e:
                             shell.print_exception(e)
                             logging.error(
@@ -1262,8 +1267,7 @@ class TCPRelayHandler(object):
                         if obfs_decode[1]:
                             if self._server._config[
                                     "is_multi_user"] == 1 and self._current_user_id == 0:
-                                if self._server._config["obfs"] == b"http_simple" or self._server._config[
-                                        "obfs"] == b"http_post":
+                                if self._server._config["obfs"] in [b"http_simple", b"http_post", b"simple_obfs_tls", b"simple_obfs_http"]:
                                     if(len(obfs_decode) > 3):
                                         host = obfs_decode[3]
                             if not self._protocol.obfs.server_info.recv_iv:
@@ -1271,7 +1275,16 @@ class TCPRelayHandler(object):
                                     self._protocol.obfs.server_info.iv)
                                 self._protocol.obfs.server_info.recv_iv = obfs_decode[
                                     0][:iv_len]
-                            data = self._encryptor.decrypt(obfs_decode[0])
+                            try:
+                                data = self._encryptor.decrypt(obfs_decode[0])
+                            except Exception as e:
+                                shell.print_exception(e)
+                                if self._config['verbose']:
+                                    traceback.print_exc()
+                                logging.error(
+                                    "decrypt data failed, exception from %s:%d" %
+                                    (self._client_address[0], self._client_address[1]))
+                                data = [0]
                         else:
                             data = obfs_decode[0]
 
@@ -1446,7 +1459,15 @@ class TCPRelayHandler(object):
                     iv_len = len(self._protocol.obfs.server_info.iv)
                     self._protocol.obfs.server_info.recv_iv = obfs_decode[
                         0][:iv_len]
-                data = self._encryptor.decrypt(obfs_decode[0])
+                try:
+                    data = self._encryptor.decrypt(obfs_decode[0])
+                except Exception as e:
+                    shell.print_exception(e)
+                    logging.error(
+                        "decrypt data failed, exception from %s:%d" %
+                        (self._client_address[0], self._client_address[1]))
+                    self.destroy()
+                    return
                 try:
                     data = self._protocol.client_post_decrypt(data)
                     if self._recv_pack_id == 1:
