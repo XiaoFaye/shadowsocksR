@@ -17,21 +17,24 @@ class WebApi(object):
             uri_params = params.copy()
             uri_params['key'] = get_config().WEBAPI_TOKEN
             res = self.session_pool.get(
-                '%s/mod_mu/%s' %
+                '%s/mu/%s' %
                 (get_config().WEBAPI_URL, uri),
                 params=uri_params,
                 timeout=10)
-            try:
-                data = res.json()
-            except Exception:
-                if res:
-                    logging.error("Error data:%s" % (res.text))
-                return []
-            if data['ret'] == 0:
-                logging.error("Error data:%s" % (res.text))
-                logging.error("request %s error!wrong ret!"%(uri))
-                return []
-            return data['data']
+            # try:
+            #     data = res.json()
+            # except Exception:
+            #     if res:
+            #         logging.error("Error data:%s" % (uri))
+            #     return []
+            # if data['ret'] == 0:
+            #     logging.error("Error data:%s" % (res.text))
+            #     logging.error("request %s error!wrong ret!"%(uri))
+            #     return []
+            if uri == 'users':
+                return res.json()['data']
+            
+            return res
         except Exception:
             import traceback
             trace = traceback.format_exc()
@@ -45,25 +48,27 @@ class WebApi(object):
             uri_params = params.copy()
             uri_params['key'] = get_config().WEBAPI_TOKEN
             res = self.session_pool.post(
-                '%s/mod_mu/%s' %
+                '%s/mu/%s' %
                 (get_config().WEBAPI_URL,
                  uri),
                 params=uri_params,
                 json=raw_data,
                 timeout=10)
-            try:
-                data = res.json()
-            except Exception:
-                if res:
-                    logging.error("Error data:%s" % (res.text))
-                return []
-            if data['ret'] == 0:
-                logging.error("Error data:%s" % (res.text))
-                logging.error("request %s error!wrong ret!"%(uri))
-                return []
-            return data['data']
+            # try:
+            #     data = res.json()
+            # except Exception:
+            #     if res:
+            #         logging.error("Error data:%s" % (uri))
+            #     return []
+            # if data['ret'] == 0:
+            #     logging.error("Error data:%s" % (res.text))
+            #     logging.error("request %s error!wrong ret!"%(uri))
+            #     return []
+            return res
+        except requests.exceptions.Timeout:
+            print "Timeout occurred"
         except Exception:
             import traceback
             trace = traceback.format_exc()
             logging.error(trace)
-            raise Exception('network issue or server error!')
+            raise Exception('network issue or server error!' + uri)

@@ -64,8 +64,8 @@ def main():
         threadMain = MainThread(db_transfer.DbTransfer)
     threadMain.start()
 
-    threadSpeedtest = MainThread(speedtest_thread.Speedtest)
-    threadSpeedtest.start()
+    #threadSpeedtest = MainThread(speedtest_thread.Speedtest)
+    #threadSpeedtest.start()
 
     threadAutoexec = MainThread(auto_thread.AutoExec)
     threadAutoexec.start()
@@ -80,8 +80,8 @@ def main():
         import traceback
         traceback.print_exc()
         threadMain.stop()
-        if threadSpeedtest.is_alive():
-            threadSpeedtest.stop()
+        # if threadSpeedtest.is_alive():
+        #     threadSpeedtest.stop()
         if threadAutoexec.is_alive():
             threadAutoexec.stop()
         if threadAutoblock.is_alive():

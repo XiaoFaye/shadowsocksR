@@ -14,8 +14,8 @@ MU_REGEX = '%5m%id.%suffix'
 SERVER_PUB_ADDR = '127.0.0.1'  # mujson_mgr need this to generate ssr link
 API_INTERFACE = 'modwebapi'  # glzjinmod, modwebapi
 
-WEBAPI_URL = 'https://zhaoj.in'
-WEBAPI_TOKEN = 'glzjin'
+WEBAPI_URL = 'http://192.168.50.161:5000'
+WEBAPI_TOKEN = 'corepanel8880367'
 
 # mudb
 MUDB_FILE = 'mudb.json'
